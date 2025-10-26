@@ -1,85 +1,66 @@
-import { App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting } from 'obsidian';
+import { App, DataAdapter, Editor, FileSystemAdapter, FileView, HoverPopover, MarkdownPostProcessor, MarkdownPostProcessorContext, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting, TFile, WorkspaceLeaf, WorkspaceWindow } from 'obsidian';
+import { SourcebookBackgroundPluginSettings } from './common';
+import { SourceBGSettingTab } from './settings';
+import * as path from 'path';
 
-// Remember to rename these classes and interfaces!
+const DEFAULT_SETTINGS: SourcebookBackgroundPluginSettings = {
 
-interface MyPluginSettings {
-	mySetting: string;
-}
+	SourceFolders: [
+    ],
+    NoteBG: [
+    ],
+    DefaultBG: ""
+} 
 
-const DEFAULT_SETTINGS: MyPluginSettings = {
-	mySetting: 'default'
-}
-
-export default class MyPlugin extends Plugin {
-	settings: MyPluginSettings;
+export default class SourcebookBGPlugin extends Plugin {
+	
+	settings: SourcebookBackgroundPluginSettings;
+	popoverObserver: MutationObserver;
 
 	async onload() {
+		console.log("loading sourcebook background plugin...");
+		
 		await this.loadSettings();
+		
+   		this.addSettingTab(new SourceBGSettingTab(this.app, this));
 
-		// This creates an icon in the left ribbon.
-		const ribbonIconEl = this.addRibbonIcon('dice', 'Sample Plugin', (_evt: MouseEvent) => {
-			// Called when the user clicks the icon.
-			new Notice('This is a notice!');
-		});
-		// Perform additional things with the ribbon
-		ribbonIconEl.addClass('my-plugin-ribbon-class');
+		this.registerEvent(
+			this.app.workspace.on('file-open', (file) => this.SetSourcebookBackgroundContainerBgProperty())
+		);
 
-		// This adds a status bar item to the bottom of the app. Does not work on mobile apps.
-		const statusBarItemEl = this.addStatusBarItem();
-		statusBarItemEl.setText('Status Bar Text');
-
-		// This adds a simple command that can be triggered anywhere
-		this.addCommand({
-			id: 'open-sample-modal-simple',
-			name: 'Open sample modal (simple)',
-			callback: () => {
-				new SampleModal(this.app).open();
+		this.registerMarkdownPostProcessor((element, context) => {
+			const isHoverPopover = context.containerEl.closest('.hover-popover');
+			if (isHoverPopover)
+			{
+				//console.log("Popover Markdown")
+				context.containerEl.closest('.hover-popover')?.setAttribute("data-hover-file-path", context.sourcePath);
 			}
+			
 		});
-		// This adds an editor command that can perform some operation on the current editor instance
-		this.addCommand({
-			id: 'sample-editor-command',
-			name: 'Sample editor command',
-			editorCallback: (editor: Editor, _view: MarkdownView) => {
-				console.log(editor.getSelection());
-				editor.replaceSelection('Sample Editor Command');
-			}
-		});
-		// This adds a complex command that can check whether the current state of the app allows execution of the command
-		this.addCommand({
-			id: 'open-sample-modal-complex',
-			name: 'Open sample modal (complex)',
-			checkCallback: (checking: boolean) => {
-				// Conditions to check
-				const markdownView = this.app.workspace.getActiveViewOfType(MarkdownView);
-				if (markdownView) {
-					// If checking is true, we're simply "checking" if the command can be run.
-					// If checking is false, then we want to actually perform the operation.
-					if (!checking) {
-						new SampleModal(this.app).open();
+
+
+		this.registerEvent(
+			this.app.metadataCache.on('changed', async (file) => this.GetImagePath(file.path))
+		);
+
+		this.popoverObserver = new MutationObserver((mutations) =>{
+			for (const mutation of mutations) {
+				mutation.addedNodes.forEach(node => {
+					if (node instanceof HTMLElement && node.classList.contains('hover-popover')) {
+						setTimeout(() => {
+							this.SetPopoverBG(node);			
+						}, 50);	
 					}
-
-					// This command will only show up in Command Palette when the check function returns true
-					return true;
-				}
+				});
 			}
 		});
 
-		// This adds a settings tab so the user can configure various aspects of the plugin
-		this.addSettingTab(new SampleSettingTab(this.app, this));
-
-		// If the plugin hooks up any global DOM events (on parts of the app that doesn't belong to this plugin)
-		// Using this function will automatically remove the event listener when this plugin is disabled.
-		this.registerDomEvent(document, 'click', (evt: MouseEvent) => {
-			console.log('click', evt);
-		});
-
-		// When registering intervals, this function will automatically clear the interval when the plugin is disabled.
-		this.registerInterval(window.setInterval(() => console.log('setInterval'), 5 * 60 * 1000));
+		this.popoverObserver.observe(document.body, { childList: true, subtree: true });
 	}
 
 	onunload() {
-
+		console.log("unloading sourcebook background plugin...");
+		this.popoverObserver.disconnect()
 	}
 
 	async loadSettings() {
@@ -89,46 +70,159 @@ export default class MyPlugin extends Plugin {
 	async saveSettings() {
 		await this.saveData(this.settings);
 	}
-}
 
-class SampleModal extends Modal {
-	constructor(app: App) {
-		super(app);
+	SetSourcebookBackgroundContainerBgProperty(){
+		console.log("Changing BGs");
+		this.app.workspace.iterateAllLeaves((leaf) =>
+		{
+			this.SetSourcebookBG(leaf)
+		})
 	}
 
-	onOpen() {
-		const {contentEl} = this;
-		contentEl.setText('Woah!');
+	GetImagePath(path:string)
+	{
+		// if (this.app.vault.adapter instanceof FileSystemAdapter) {
+		// 	const absolutePath = this.app.vault.adapter.getFullPath(path);
+		// 	console.log("Absolute Path: " + absolutePath)
+
+		// }
+		
+		//console.log("Path: " + path	)
+		for (let index = 0; index < this.settings.SourceFolders.length; index++) {
+			if (path.contains(this.settings.SourceFolders[index]))
+			{
+				return this.settings.NoteBG[index];
+			}
+		}	
+		
+		return this.settings.DefaultBG;
 	}
 
-	onClose() {
-		const {contentEl} = this;
-		contentEl.empty();
+
+	SetSourcebookBG(leaf: WorkspaceLeaf){
+
+		let activeFile = (leaf.view as FileView).file
+		
+		if (activeFile === null)
+		{
+			return;
+		}
+
+		if (activeFile?.path != null)
+		{
+			
+			let bgImage = this.GetImagePath(activeFile.path)
+			//console.log("Leaf is Page")
+			this.SetPageBG(leaf, bgImage);
+		
+		}
 	}
-}
 
-class SampleSettingTab extends PluginSettingTab {
-	plugin: MyPlugin;
+	SetPageBG(leaf: WorkspaceLeaf, bgImage: string)
+	{
+		//console.log("Styling Page!")
+		let leafView = leaf.view.containerEl
 
-	constructor(app: App, plugin: MyPlugin) {
-		super(app, plugin);
-		this.plugin = plugin;
+		const dataType = leafView.getAttribute("data-type")
+		if (dataType != "markdown") return;
+
+		//console.log(bgImage)
+		let bg = leafView.find(".view-content")
+		if (bg)
+		{
+			bg.style.setProperty("background","url(\"" + bgImage + "\"");
+			bg.style.setProperty("background-size", "cover");
+			bg.style.setProperty("background-position", "center center");
+		}
+
+		
+		let backgroundColor = '#000000ff';
+
+		const bodyEl = document.querySelector('body')
+		if (bodyEl)
+		{
+			const computedStyle = getComputedStyle(bodyEl);
+			backgroundColor = computedStyle.getPropertyValue('--background-primary');
+		}
+		else
+		{
+			console.log("No body element found");
+		}
+
+		let content  = leafView.find(".cm-contentContainer")
+		if (content)
+		{
+			content.style.setProperty("background-color", backgroundColor)
+			content.style.setProperty("padding", "1%")
+			content.style.setProperty("border-radius", "12px")
+		}
+
+		let preview = leafView.find(".markdown-preview-sizer.markdown-preview-section")
+		if (preview)
+		{
+			preview.style.setProperty("background-color", backgroundColor)
+			preview.style.setProperty("padding", "1%")
+			preview.style.setProperty("border-radius", "12px")
+		}
 	}
 
-	display(): void {
-		const {containerEl} = this;
+	SetPopoverBG(node:HTMLElement)
+	{
 
-		containerEl.empty();
+		if (node.firstElementChild?.classList.contains("image-embed"))
+		{
+			//console.log("found image")
+			return;
+		}
 
-		new Setting(containerEl)
-			.setName('Setting #1')
-			.setDesc('It\'s a secret')
-			.addText(text => text
-				.setPlaceholder('Enter your secret')
-				.setValue(this.plugin.settings.mySetting)
-				.onChange(async (value) => {
-					this.plugin.settings.mySetting = value;
-					await this.plugin.saveSettings();
-				}));
+		let backgroundColor = '#000000';
+
+		const bodyEl = document.querySelector('body')
+		if (bodyEl)
+		{
+			const computedStyle = getComputedStyle(bodyEl);
+			backgroundColor = computedStyle.getPropertyValue('--background-primary');
+		}
+		else
+		{
+			console.log("No body element found");
+		}
+
+		let filePath = node.getAttribute("data-hover-file-path") ?? " ";
+		let bgImage = this.GetImagePath(filePath)
+
+		const banner = document.createElement("div");
+        banner.classList.add("hover-banner");
+		banner.style.setProperty("background","url(\"" + bgImage + "\"");
+		banner.style.setProperty("background-size", "cover")
+
+		const firstChild = node.firstElementChild;
+		if (firstChild) {
+			const newParent = banner
+			node.insertBefore(banner, firstChild);
+			newParent.appendChild(firstChild);
+
+			let page = firstChild.find(".markdown-preview-view.markdown-rendered") as HTMLElement
+			
+			if (!page) return;
+
+			page.style.setProperty("box-sizing", "border-box")
+			page.style.setProperty("padding", "1%", 'important')
+			page.style.setProperty("border-radius", "12px")
+			page.style.setProperty("overflow-y", "scroll")
+			///page.style.setProperty("background-color", "#202020")
+			page.style.setProperty("background-color", backgroundColor)
+			Object.assign(page.style, {
+					overflow: 'auto',
+					maxHeight: '400px',
+			});
+
+			let pageParent = page.parentElement?.style;
+			if (pageParent)
+				pageParent.setProperty("padding", "0px", "important");
+			
+			(firstChild as HTMLElement)?.style.setProperty("padding", "2.5%", 'important')
+
+		}
 	}
 }

@@ -1,8 +1,10 @@
-/*
+.folder-entry-parent
+{
+  display: flex;
+}
 
-This CSS file will be included with your plugin, and
-available in the app when your plugin is enabled.
-
-If your plugin does not need CSS, delete this file.
-
-*/
+.wide-text-entry {
+    width: 90%;
+    margin-left: 5%;
+    margin-right: 5%;
+}
