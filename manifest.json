@@ -7,5 +7,6 @@
 	"author": "Isaac Lovy",
 	"authorUrl": "https://portfolio.isaaclovy.xyz/",
 	"fundingUrl": "",
-	"isDesktopOnly": false
+	"isDesktopOnly": false,
+	"is-beta": true
 }
