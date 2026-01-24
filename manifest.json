@@ -1,8 +1,8 @@
 {
 	"id": "folder-backgrounds-obsidian",
 	"name": "Folder Banners",
-	"version": "1.0.0",
-	"minAppVersion": "0.15.0",
+	"version": "1.0.1",
+	"minAppVersion": "1.9.14",
 	"description": "",
 	"author": "Isaac Lovy",
 	"authorUrl": "https://portfolio.isaaclovy.xyz/",

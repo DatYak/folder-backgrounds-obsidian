@@ -153,16 +153,30 @@ export default class SourcebookBGPlugin extends Plugin {
 		if (content)
 		{
 			content.style.setProperty("background-color", backgroundColor)
-			content.style.setProperty("padding", "1%")
-			content.style.setProperty("border-radius", "12px")
+			content.style.setProperty("padding", "1vmax")
+			//content.style.setProperty("border-radius", "12px")
 		}
 
 		let preview = leafView.find(".markdown-preview-sizer.markdown-preview-section")
 		if (preview)
 		{
 			preview.style.setProperty("background-color", backgroundColor)
-			preview.style.setProperty("padding", "1%")
-			preview.style.setProperty("border-radius", "12px")
+			preview.style.setProperty("padding", "1vmax")
+			//preview.style.setProperty("border-radius", "12px")
+		}
+
+		let markdownPreview = leafView.find(".markdown-preview-view.markdown-rendered")
+		if (markdownPreview)
+		{
+			markdownPreview.style.setProperty("padding-top", "0%")
+			markdownPreview.style.setProperty("padding-bottom", "0%")
+		}
+
+		let markdownRendered = leafView.find(".cm-scroller")
+		if (markdownRendered)
+		{
+			markdownRendered.style.setProperty("padding-top", "0%")
+			markdownRendered.style.setProperty("padding-bottom", "0%")
 		}
 	}
 
@@ -207,10 +221,11 @@ export default class SourcebookBGPlugin extends Plugin {
 			if (!page) return;
 
 			page.style.setProperty("box-sizing", "border-box")
-			page.style.setProperty("padding", "1%", 'important')
-			page.style.setProperty("border-radius", "12px")
+			//page.style.setProperty("padding", "0%", 'important')
+			page.style.setProperty("padding-left", "0x", 'important')
+			page.style.setProperty("padding-right", "0px", 'important')
+			//page.style.setProperty("border-radius", "0px")
 			page.style.setProperty("overflow-y", "scroll")
-			///page.style.setProperty("background-color", "#202020")
 			page.style.setProperty("background-color", backgroundColor)
 			Object.assign(page.style, {
 					overflow: 'auto',
@@ -221,7 +236,9 @@ export default class SourcebookBGPlugin extends Plugin {
 			if (pageParent)
 				pageParent.setProperty("padding", "0px", "important");
 			
-			(firstChild as HTMLElement)?.style.setProperty("padding", "2.5%", 'important')
+			(firstChild as HTMLElement)?.style.setProperty("padding-right", "60px", 'important');
+
+			(firstChild as HTMLElement)?.style.setProperty("padding-left", "60px", 'important');
 
 		}
 	}
